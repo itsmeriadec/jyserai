@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>J'y serai – CONASIG 2026</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#04230f; --panel:#073a1a; --line:#0d5226;
+    --green:#1dbf2a; --yellow:#ffe600; --text:#eaf5ec; --muted:#9bbfa4;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--text);
+    font-family:'Montserrat',system-ui,sans-serif; line-height:1.5;
+    min-height:100vh; display:flex; justify-content:center; padding:24px 16px 48px;
+  }
+  main{width:100%; max-width:520px}
+  .date{color:var(--yellow); font-weight:700; font-size:.9rem; margin:0 0 6px}
+  h1{font-size:clamp(1.7rem,6vw,2.2rem); line-height:1.15; margin:0 0 10px; font-weight:800}
+  .intro{color:var(--muted); margin:0 0 20px; font-size:.95rem}
+  .stage{background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:10px}
+  canvas{display:block; width:100%; height:auto; border-radius:8px}
+  canvas.has-photo{cursor:grab; touch-action:none}
+  canvas.dragging{cursor:grabbing}
+  .controls{margin:16px 0 0; display:grid; gap:12px}
+  .btn{
+    appearance:none; border:0; border-radius:10px; padding:14px 18px; font:inherit;
+    font-weight:700; font-size:1rem; cursor:pointer; text-align:center; display:block; width:100%;
+  }
+  .btn-main{background:var(--green); color:#03140a}
+  .btn-alt{background:transparent; color:var(--text); border:1.5px solid var(--green)}
+  .btn:disabled{opacity:.35; cursor:not-allowed}
+  .btn:focus-visible,input:focus-visible{outline:3px solid var(--yellow); outline-offset:2px}
+  .zoom{display:none; align-items:center; gap:12px; font-size:.85rem; color:var(--muted)}
+  .zoom.on{display:flex}
+  .zoom input{flex:1; accent-color:var(--green)}
+  .hint{font-size:.8rem; color:var(--muted); margin:0}
+  .privacy{font-size:.78rem; color:var(--muted); margin:18px 0 0; text-align:center}
+  input[type=file]{display:none}
+</style>
+</head>
+<body>
+<main>
+  <p class="date">12 · 13 · 14 novembre 2026</p>
+  <h1>Montre que tu seras à la CONASIG</h1>
+  <p class="intro">Ajoute ta photo, ajuste le cadrage, télécharge ton affiche « J'y serai » et partage-la.</p>
+
+  <div class="stage">
+    <canvas id="c" width="1080" height="1350" aria-label="Aperçu de ton affiche"></canvas>
+  </div>
+
+  <div class="controls">
+    <label class="zoom" id="zoomWrap">Zoom
+      <input type="range" id="zoom" min="1" max="3" step="0.01" value="1" aria-label="Zoom de la photo">
+    </label>
+    <p class="hint" id="hint" style="display:none">Glisse la photo avec le doigt ou la souris pour la recadrer.</p>
+
+    <button class="btn btn-main" id="pick" type="button">Choisir ma photo</button>
+    <input type="file" id="file" accept="image/*">
+    <button class="btn btn-alt" id="dl" type="button" disabled>Télécharger mon affiche</button>
+  </div>
+
+  <p class="privacy">Ta photo reste sur ton appareil : elle n'est envoyée à aucun serveur.</p>
+</main>
+
+<script>
+(function(){
+  // Zone photo (transparente) de l'affiche, en pixels sur 1080 × 1350
+  var ZONE = {x:226, y:348, w:649, h:645};
+  var POSTER_SRC = 'affiche.png';
+
+  var canvas = document.getElementById('c');
+  var ctx = canvas.getContext('2d');
+  var fileInput = document.getElementById('file');
+  var pickBtn = document.getElementById('pick');
+  var dlBtn = document.getElementById('dl');
+  var zoomInput = document.getElementById('zoom');
+  var zoomWrap = document.getElementById('zoomWrap');
+  var hint = document.getElementById('hint');
+
+  var poster = new Image();
+  var photo = null;
+  var zoom = 1, ox = 0, oy = 0;
+
+  function base(){ return Math.max(ZONE.w / photo.width, ZONE.h / photo.height); }
+
+  function clamp(){
+    var dw = photo.width * base() * zoom;
+    var dh = photo.height * base() * zoom;
+    var mx = (dw - ZONE.w) / 2, my = (dh - ZONE.h) / 2;
+    ox = Math.max(-mx, Math.min(mx, ox));
+    oy = Math.max(-my, Math.min(my, oy));
+  }
+
+  function draw(){
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#04230f';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(ZONE.x, ZONE.y, ZONE.w, ZONE.h);
+    ctx.clip();
+    if (photo) {
+      clamp();
+      var dw = photo.width * base() * zoom;
+      var dh = photo.height * base() * zoom;
+      var cx = ZONE.x + ZONE.w / 2 + ox;
+      var cy = ZONE.y + ZONE.h / 2 + oy;
+      ctx.drawImage(photo, cx - dw / 2, cy - dh / 2, dw, dh);
+    } else {
+      ctx.fillStyle = '#0b4a22';
+      ctx.fillRect(ZONE.x, ZONE.y, ZONE.w, ZONE.h);
+      ctx.fillStyle = '#9bbfa4';
+      ctx.font = '700 34px Montserrat, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('Ta photo apparaîtra ici', ZONE.x + ZONE.w / 2, ZONE.y + ZONE.h / 2 + 12);
+    }
+    ctx.restore();
+
+    if (poster.complete && poster.naturalWidth) ctx.drawImage(poster, 0, 0, canvas.width, canvas.height);
+  }
+
+  poster.onload = draw;
+  poster.src = POSTER_SRC;
+  draw();
+
+  pickBtn.addEventListener('click', function(){ fileInput.click(); });
+
+  fileInput.addEventListener('change', function(){
+    var f = fileInput.files && fileInput.files[0];
+    if (!f) return;
+    var url = URL.createObjectURL(f);
+    var img = new Image();
+    img.onload = function(){
+      photo = img; zoom = 1; ox = 0; oy = 0; zoomInput.value = 1;
+      canvas.classList.add('has-photo');
+      zoomWrap.classList.add('on');
+      hint.style.display = 'block';
+      dlBtn.disabled = false;
+      pickBtn.textContent = 'Changer de photo';
+      draw();
+      URL.revokeObjectURL(url);
+    };
+    img.onerror = function(){ alert("Impossible de lire cette image. Essaie un autre fichier (JPG ou PNG)."); };
+    img.src = url;
+  });
+
+  zoomInput.addEventListener('input', function(){
+    zoom = parseFloat(zoomInput.value); draw();
+  });
+
+  // Déplacement de la photo (souris et doigt)
+  var dragging = false, lx = 0, ly = 0;
+  canvas.addEventListener('pointerdown', function(e){
+    if (!photo) return;
+    dragging = true; lx = e.clientX; ly = e.clientY;
+    canvas.setPointerCapture(e.pointerId);
+    canvas.classList.add('dragging');
+  });
+  canvas.addEventListener('pointermove', function(e){
+    if (!dragging) return;
+    var k = canvas.width / canvas.getBoundingClientRect().width;
+    ox += (e.clientX - lx) * k; oy += (e.clientY - ly) * k;
+    lx = e.clientX; ly = e.clientY;
+    draw();
+  });
+  function stop(){ dragging = false; canvas.classList.remove('dragging'); }
+  canvas.addEventListener('pointerup', stop);
+  canvas.addEventListener('pointercancel', stop);
+
+  // Molette pour zoomer sur ordinateur
+  canvas.addEventListener('wheel', function(e){
+    if (!photo) return;
+    e.preventDefault();
+    zoom = Math.max(1, Math.min(3, zoom - e.deltaY * 0.002));
+    zoomInput.value = zoom; draw();
+  }, {passive:false});
+
+  dlBtn.addEventListener('click', function(){
+    if (!photo) return;
+    canvas.toBlob(function(blob){
+      if (!blob) { alert("Le téléchargement a échoué. Ouvre le site depuis son adresse GitHub Pages."); return; }
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'jyserai-conasig-2026.png';
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(function(){ URL.revokeObjectURL(a.href); }, 2000);
+    }, 'image/png');
+  });
+})();
+</script>
+</body>
+</html>
